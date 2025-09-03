@@ -14,7 +14,7 @@
 # limitations under the License.
 
 github:
-  description: "Apache Teaclave (incubating) SGX SDK helps developers to write Intel SGX applications in the Rust programming language, and also known as Rust SGX SDK."
+  description: "Apache Teaclave™ SGX SDK helps developers to write Intel SGX applications in the Rust programming language, and also known as Rust SGX SDK."
   homepage: https://teaclave.apache.org
   labels:
     - universal-secure-computing
