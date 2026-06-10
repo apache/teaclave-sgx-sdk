@@ -27,7 +27,6 @@
 #![feature(maybe_uninit_write_slice)]
 #![feature(negative_impls)]
 #![feature(new_uninit)]
-#![feature(restricted_std)]
 #![feature(rustc_attrs)]
 #![feature(min_specialization)]
 #![feature(strict_provenance)]
