@@ -225,16 +225,10 @@ impl<I: Write + ?Sized> BufferedWriterSpec for BufWriter<I> {
         }
 
         let mut len = 0;
-        let mut init = 0;
 
         loop {
             let buf = self.buffer_mut();
-            let mut read_buf: BorrowedBuf<'_> = buf.spare_capacity_mut().into();
-
-            unsafe {
-                // SAFETY: init is either 0 or the init_len from the previous iteration.
-                read_buf.set_init(init);
-            }
+            let mut read_buf: BorrowedBuf<'_, u8> = buf.spare_capacity_mut().into();
 
             if read_buf.capacity() >= DEFAULT_BUF_SIZE {
                 let mut cursor = read_buf.unfilled();
@@ -246,7 +240,6 @@ impl<I: Write + ?Sized> BufferedWriterSpec for BufWriter<I> {
                             return Ok(len);
                         }
 
-                        init = read_buf.init_len() - bytes_read;
                         len += bytes_read as u64;
 
                         // SAFETY: BorrowedBuf guarantees all of its filled bytes are init
@@ -260,7 +253,6 @@ impl<I: Write + ?Sized> BufferedWriterSpec for BufWriter<I> {
                 }
             } else {
                 self.flush_buf()?;
-                init = 0;
             }
         }
     }
@@ -290,16 +282,11 @@ impl<A: Allocator> BufferedWriterSpec for Vec<u8, A> {
 
         loop {
             self.reserve(DEFAULT_BUF_SIZE);
-            let mut initialized_spare_capacity = 0;
 
             loop {
                 let buf = self.spare_capacity_mut();
                 let read_size = min(max_read_size, buf.len());
                 let mut buf = BorrowedBuf::from(&mut buf[..read_size]);
-                // SAFETY: init is either 0 or the init_len from the previous iteration.
-                unsafe {
-                    buf.set_init(initialized_spare_capacity);
-                }
                 match reader.read_buf(buf.unfilled()) {
                     Ok(()) => {
                         let bytes_read = buf.len();
@@ -310,7 +297,7 @@ impl<A: Allocator> BufferedWriterSpec for Vec<u8, A> {
                         }
 
                         // the reader is returning short reads but it doesn't call ensure_init()
-                        if buf.init_len() < buf.capacity() {
+                        if !buf.is_init() {
                             max_read_size = usize::MAX;
                         }
                         // the reader hasn't returned short reads so far
@@ -318,7 +305,6 @@ impl<A: Allocator> BufferedWriterSpec for Vec<u8, A> {
                             max_read_size *= 2;
                         }
 
-                        initialized_spare_capacity = buf.init_len() - bytes_read;
                         bytes += bytes_read as u64;
                         // SAFETY: BorrowedBuf guarantees all of its filled bytes are init
                         // and the number of read bytes can't exceed the spare capacity since
@@ -343,7 +329,7 @@ fn stack_buffer_copy<R: Read + ?Sized, W: Write + ?Sized>(
     writer: &mut W,
 ) -> Result<u64> {
     let buf: &mut [_] = &mut [MaybeUninit::uninit(); DEFAULT_BUF_SIZE];
-    let mut buf: BorrowedBuf<'_> = buf.into();
+    let mut buf: BorrowedBuf<'_, u8> = buf.into();
 
     let mut len = 0;
 

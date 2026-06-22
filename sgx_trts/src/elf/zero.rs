@@ -22,8 +22,8 @@ use core::str::{from_utf8, from_utf8_unchecked};
 use sgx_types::marker::ContiguousMemory;
 
 pub fn read<T: ContiguousMemory>(input: &[u8]) -> &T {
-    assert!(mem::size_of::<T>() <= input.as_slice().len());
-    let addr = input.as_slice().as_ptr() as usize;
+    assert!(mem::size_of::<T>() <= AsSlice::as_slice(input).len());
+    let addr = AsSlice::as_slice(input).as_ptr() as usize;
     // Alignment is always a power of 2, so we can use bit ops instead of a mod here.
     assert!((addr & (mem::align_of::<T>() - 1)) == 0);
 
@@ -33,8 +33,8 @@ pub fn read<T: ContiguousMemory>(input: &[u8]) -> &T {
 pub fn read_array<T: ContiguousMemory>(input: &[u8]) -> &[T] {
     let t_size = mem::size_of::<T>();
     assert!(t_size > 0, "Can't read arrays of zero-sized types");
-    assert!(input.as_slice().len() % t_size == 0);
-    let addr = input.as_slice().as_ptr() as usize;
+    assert!(AsSlice::as_slice(input).len() % t_size == 0);
+    let addr = AsSlice::as_slice(input).as_ptr() as usize;
     assert!(addr & (mem::align_of::<T>() - 1) == 0);
 
     unsafe { read_array_unsafe(input) }
@@ -45,12 +45,12 @@ pub fn read_str(input: &[u8]) -> &str {
 }
 
 unsafe fn read_unsafe<T: Sized>(input: &[u8]) -> &T {
-    &*(input.as_slice().as_ptr() as *const T)
+    &*(AsSlice::as_slice(input).as_ptr() as *const T)
 }
 
 unsafe fn read_array_unsafe<T: Sized>(input: &[u8]) -> &[T] {
-    let ptr = input.as_slice().as_ptr() as *const T;
-    slice::from_raw_parts(ptr, input.as_slice().len() / mem::size_of::<T>())
+    let ptr = AsSlice::as_slice(input).as_ptr() as *const T;
+    slice::from_raw_parts(ptr, AsSlice::as_slice(input).len() / mem::size_of::<T>())
 }
 
 unsafe fn read_str_unsafe(input: &[u8]) -> &str {

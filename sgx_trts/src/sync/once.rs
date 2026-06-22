@@ -38,7 +38,7 @@ impl Once {
         }
     }
 
-    pub fn lock(&self) -> SpinMutexGuard<()> {
+    pub fn lock(&self) -> SpinMutexGuard<'_, ()> {
         self.lock.lock()
     }
 

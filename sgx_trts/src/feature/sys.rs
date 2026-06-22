@@ -39,6 +39,7 @@ impl_enum! {
         Sdk2_1 = 2,
         Sdk2_2 = 3,
         Sdk2_3 = 4,
+        Sdk3_0 = 5,
     }
 }
 
@@ -60,8 +61,10 @@ pub struct SystemFeatures {
 unsafe impl ContiguousMemory for SystemFeatures {}
 
 impl SystemFeatures {
+    const SYS_FEATURE_MSB: u64 = 63;
     const SYS_FEATURE_EXTEND: u64 = 62;
     const EDMM_ENABLE_BIT: u64 = 1;
+    const AEX_NOTIFY_BIT: u64 = 2;
 
     pub unsafe fn from_raw(features: NonNull<SystemFeatures>) -> SgxResult<SystemFeatures> {
         ensure!(features.as_ref().is_host_range(), SgxStatus::Unexpected);
@@ -99,8 +102,15 @@ impl SystemFeatures {
 
     pub fn is_edmm(&self) -> bool {
         match self.version {
-            0 => false,
+            0 | 1 | 2 | 3 | 4 => false,
             _ => (self.system_feature_set[0] & SystemFeatures::EDMM_ENABLE_BIT) != 0,
+        }
+    }
+
+    pub fn is_aexnotify(&self) -> bool {
+        match self.version {
+            0 | 1 | 2 | 3 | 4 => false,
+            _ => (self.system_feature_set[0] & SystemFeatures::AEX_NOTIFY_BIT) != 0,
         }
     }
 
@@ -204,10 +214,12 @@ pub struct SysFeatures {
     cpu_core_num: u32,
     cpuinfo_table: [[u32; 4]; 8],
     is_edmm: bool,
+    is_aexnotify: bool,
 }
 
 unsafe impl ContiguousMemory for SysFeatures {}
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[link_section = ".data.rel.ro"]
 static mut SYS_FEATURES: SysFeatures = SysFeatures {
     version: Version::Sdk1_5,
@@ -216,13 +228,33 @@ static mut SYS_FEATURES: SysFeatures = SysFeatures {
     cpu_core_num: 0,
     cpuinfo_table: [[0; 4]; 8],
     is_edmm: false,
+    is_aexnotify: false,
+};
+#[cfg(feature = "use_sgx_sdk")]
+static mut SYS_FEATURES: SysFeatures = SysFeatures {
+    version: Version::Sdk1_5,
+    xfrm: types::XFRM_LEGACY,
+    cpu_features: 0,
+    cpu_core_num: 0,
+    cpuinfo_table: [[0; 4]; 8],
+    is_edmm: false,
+    is_aexnotify: false,
 };
 
 // Improve compatibility
 // e.g. intel-sgx-ssl handles CPUID with this global variable.
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[link_section = ".data.rel.ro"]
 #[no_mangle]
 pub static mut g_cpu_feature_indicator: u64 = 0;
+#[cfg(feature = "use_sgx_sdk")]
+extern "C" {
+    static mut g_cpu_feature_indicator: u64;
+    static g_sdk_version: u32;
+    static g_cpu_core_num: u32;
+    static EDMM_supported: i32;
+    static g_aexnotify_supported: i32;
+}
 
 impl SysFeatures {
     pub fn init(raw: NonNull<SystemFeatures>) -> SgxResult<&'static SysFeatures> {
@@ -230,16 +262,44 @@ impl SysFeatures {
         let version = Version::try_from(raw.version).map_err(|_| SgxStatus::Unexpected)?;
         let feature = unsafe { SysFeatures::get_mut() };
 
+        match version {
+            Version::Sdk1_5 | Version::Sdk3_0 => (),
+            _ => return Err(SgxStatus::Unexpected),
+        };
+
         feature.version = version;
         feature.xfrm = xsave::get_xfrm();
         feature.cpu_core_num = raw.cpu_core_num;
         feature.cpuinfo_table = raw.cpuinfo_table;
         feature.is_edmm = raw.is_edmm();
+        feature.is_aexnotify = raw.is_aexnotify();
         feature.cpu_features = raw.cpu_features_bit(feature.xfrm)?;
 
         unsafe {
             g_cpu_feature_indicator = feature.cpu_features;
         }
+        Ok(SysFeatures::get())
+    }
+
+    #[cfg(feature = "use_sgx_sdk")]
+    pub fn init_from_sgx_sdk() -> SgxResult<&'static SysFeatures> {
+        unsafe {
+            let version = Version::try_from(g_sdk_version).map_err(|_| SgxStatus::Unexpected)?;
+            let feature = SysFeatures::get_mut();
+
+            match version {
+                Version::Sdk1_5 | Version::Sdk3_0 => (),
+                _ => return Err(SgxStatus::Unexpected),
+            };
+
+            feature.version = version;
+            feature.xfrm = xsave::get_xfrm();
+            feature.cpu_core_num = g_cpu_core_num;
+            feature.is_edmm = EDMM_supported != 0;
+            feature.is_aexnotify = g_aexnotify_supported != 0;
+            feature.cpu_features = g_cpu_feature_indicator;
+        }
+
         Ok(SysFeatures::get())
     }
 
@@ -256,6 +316,11 @@ impl SysFeatures {
     #[inline]
     pub fn is_edmm(&self) -> bool {
         self.is_edmm
+    }
+
+    #[inline]
+    pub fn is_aexnotify(&self) -> bool {
+        self.is_aexnotify
     }
 
     #[inline]

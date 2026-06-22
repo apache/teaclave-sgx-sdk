@@ -42,21 +42,21 @@ pub struct Buffer {
     // defensive initialization as possible. Note that while this often the same as `filled`, it
     // doesn't need to be. Calls to `fill_buf` are not required to actually fill the buffer, and
     // omitting this is a huge perf regression for `Read` impls that do not.
-    initialized: usize,
+    initialized: bool,
 }
 
 impl Buffer {
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         let buf = Box::new_uninit_slice(capacity);
-        Self { buf, pos: 0, filled: 0, initialized: 0 }
+        Self { buf, pos: 0, filled: 0, initialized: false }
     }
 
     #[inline]
     pub fn buffer(&self) -> &[u8] {
         // SAFETY: self.pos and self.cap are valid, and self.cap => self.pos, and
         // that region is initialized because those are all invariants of this type.
-        unsafe { MaybeUninit::slice_assume_init_ref(self.buf.get_unchecked(self.pos..self.filled)) }
+        unsafe { self.buf.get_unchecked(self.pos..self.filled).assume_init_ref() }
     }
 
     #[inline]
@@ -76,7 +76,7 @@ impl Buffer {
 
     // This is only used by a test which asserts that the initialization-tracking is correct.
     #[cfg(feature = "unit_test")]
-    pub fn initialized(&self) -> usize {
+    pub fn initialized(&self) -> bool {
         self.initialized
     }
 
@@ -124,15 +124,16 @@ impl Buffer {
 
             let mut buf = BorrowedBuf::from(&mut *self.buf);
             // SAFETY: `self.filled` bytes will always have been initialized.
-            unsafe {
-                buf.set_init(self.initialized);
+            if self.initialized {
+                // SAFETY: only set after buf was fully initialized.
+                unsafe { buf.set_init() };
             }
 
             reader.read_buf(buf.unfilled())?;
 
             self.pos = 0;
             self.filled = buf.len();
-            self.initialized = buf.init_len();
+            self.initialized = buf.is_init();
         }
         Ok(self.buffer())
     }

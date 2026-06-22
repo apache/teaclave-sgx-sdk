@@ -147,17 +147,17 @@ impl Default for Rng {
 fn next_u32(fill_buf: &mut dyn FnMut(&mut [u8])) -> u32 {
     let mut buf = [0_u8; 4];
     fill_buf(&mut buf);
-    unsafe { mem::transmute::<[u8; 4], u32>(buf) }
+    u32::from_ne_bytes(buf)
 }
 
 fn next_u64(fill_buf: &mut dyn FnMut(&mut [u8])) -> u64 {
     let mut buf = [0_u8; 8];
     fill_buf(&mut buf);
-    unsafe { mem::transmute::<[u8; 8], u64>(buf) }
+    u64::from_ne_bytes(buf)
 }
 
 fn next_usize(fill_buf: &mut dyn FnMut(&mut [u8])) -> usize {
     let mut buf = [0_u8; mem::size_of::<usize>()];
     fill_buf(&mut buf);
-    unsafe { mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buf) }
+    usize::from_ne_bytes(buf)
 }

@@ -18,7 +18,17 @@
 use crate::arch::Align16;
 use crate::error::abort;
 use crate::se::AlignKey;
+#[cfg(not(feature = "use_sgx_sdk"))]
 use sgx_crypto_sys::sgx_rijndael128_cmac_msg;
+#[cfg(feature = "use_sgx_sdk")]
+extern "C" {
+    pub fn sgx_rijndael128_cmac_msg(
+        p_key: *const Key128bit,
+        p_src: *const u8,
+        src_len: u32,
+        p_mac: *mut sgx_types::types::Mac128bit,
+    ) -> sgx_types::error::SgxStatus;
+}
 use sgx_types::types::{
     Attributes, ConfigId, CpuSvn, IsvExtProdId, IsvFamilyId, Key128bit, KeyId, KeyName, KeyPolicy,
     Mac, Measurement, MiscSelect,

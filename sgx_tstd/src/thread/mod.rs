@@ -534,7 +534,12 @@ impl Builder {
         let main = Box::new(main);
         // SAFETY: dynamic size and alignment of the Box remain the same. See below for why the
         // lifetime change is justified.
-        let main = unsafe { Box::from_raw(Box::into_raw(main) as *mut (dyn FnOnce() + 'static)) };
+        // raw-pointer `as` casts can no longer extend trait-object lifetimes (rust#141402);
+        // unsize with the natural lifetime, then transmute the lifetime to 'static.
+        let main: *mut (dyn FnOnce() + '_) = Box::into_raw(main);
+        let main = unsafe {
+            Box::from_raw(crate::mem::transmute::<_, *mut (dyn FnOnce() + 'static)>(main))
+        };
 
         Ok(JoinInner {
             // SAFETY:

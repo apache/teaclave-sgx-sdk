@@ -32,5 +32,10 @@ fn main() -> Result<(), &'static str> {
         "HYPER" => println!("cargo:rustc-cfg=feature=\"hyper\""),
         _ => (),
     }
+
+    let target = env::var("TARGET").unwrap();
+    if target == "x86_64-sgx_sdk-linux-sgx" {
+        println!("cargo:rustc-cfg=feature=\"use_sgx_sdk\"");
+    }
     Ok(())
 }

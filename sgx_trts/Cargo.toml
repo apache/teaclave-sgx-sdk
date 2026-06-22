@@ -34,8 +34,14 @@ default = []
 thread = []
 sim = ["sgx_types/sim"]
 hyper = ["sgx_types/hyper"]
+use_sgx_sdk = []
 
 [dependencies]
 sgx_types = { path = "../sgx_types" }
+
+# cannot condition to feature, as the feature is set in build.rs, *after* the dependencies resolution
+# the full target name is not usable either as we need a <cfg> block to negate it,
+# so we check for a custom target_abi, as defined in x86_64-sgx_sdk_linux_sgx.json
+[target.'cfg(not(target_abi = "sgx_sdk"))'.dependencies]
 sgx_crypto_sys = { path = "../sgx_crypto/sgx_crypto_sys" }
 sgx_tlibc_sys = { path = "../sgx_libc/sgx_tlibc_sys" }

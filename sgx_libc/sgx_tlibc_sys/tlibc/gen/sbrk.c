@@ -41,10 +41,17 @@ SE_DECLSPEC_EXPORT size_t g_peak_heap_used = 0;
 /* Please be aware of: sbrk is not thread safe by default. */
 
 #define RELRO_SECTION_NAME ".data.rel.ro"
+#ifndef _TD_MIGRATION
 static void *heap_base __attribute__((section(RELRO_SECTION_NAME))) = NULL;
 static size_t heap_size __attribute__((section(RELRO_SECTION_NAME))) = 0;
 static int is_edmm_supported __attribute__((section(RELRO_SECTION_NAME))) = 0;
 static size_t heap_min_size __attribute__((section(RELRO_SECTION_NAME))) = 0;
+#else
+void *heap_base = NULL;
+size_t heap_size = 0;
+int is_edmm_supported = 0;
+size_t heap_min_size = 0;
+#endif
 
 unsigned int sgx_heap_init(void *_heap_base, size_t _heap_size, size_t _heap_min_size, int _is_edmm_supported)
 {
@@ -78,6 +85,7 @@ void* sbrk(intptr_t n)
     size_t prev_heap_used = heap_used;
     void * start_addr;
     size_t size = 0;
+    assert((heap_used & (SE_PAGE_SIZE - 1)) == 0);
 
     if (!heap_base)
         return (void *)(~(size_t)0);
@@ -113,6 +121,7 @@ void* sbrk(intptr_t n)
                 start_addr = (void *)((size_t)(heap_base) + heap_min_size);
                 size = prev_heap_used - heap_min_size;
             }
+            assert((size & (SE_PAGE_SIZE - 1)) == 0);
             int ret = sgx_trim_epc_pages(start_addr, size >> SE_PAGE_SHIFT);
             if (ret != 0)
             {
@@ -131,6 +140,8 @@ void* sbrk(intptr_t n)
        there's no integer overflow here.
      */  
     heap_ptr = (void *)((size_t)heap_base + (size_t)heap_used);
+    if(n == 0) return heap_ptr;
+
     heap_used += n;
 
     /* update g_peak_heap_used */
@@ -154,6 +165,7 @@ void* sbrk(intptr_t n)
             start_addr = (void *)((size_t)(heap_base) + heap_min_size);
             size = heap_used - heap_min_size;
         }
+        assert((size & (SE_PAGE_SIZE - 1)) == 0);
         int ret = sgx_apply_epc_pages(start_addr, size >> SE_PAGE_SHIFT);
         if (ret != 0)
         {

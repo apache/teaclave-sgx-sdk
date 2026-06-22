@@ -325,7 +325,7 @@ where
         Ok(n)
     }
 
-    fn read_buf(&mut self, mut cursor: BorrowedCursor<'_>) -> io::Result<()> {
+    fn read_buf(&mut self, mut cursor: BorrowedCursor<'_, u8>) -> io::Result<()> {
         let prev_written = cursor.written();
 
         Read::read_buf(&mut self.fill_buf()?, cursor.reborrow())?;

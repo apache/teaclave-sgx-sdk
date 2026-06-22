@@ -19,20 +19,19 @@
 
 #![no_std]
 #![cfg_attr(target_vendor = "teaclave", feature(rustc_private))]
+#![allow(internal_features)]
 #![feature(allocator_api)]
 #![feature(const_trait_impl)]
 #![feature(core_intrinsics)]
-#![feature(extract_if)]
-#![feature(maybe_uninit_uninit_array)]
 #![feature(min_specialization)]
 #![feature(negative_impls)]
 #![feature(never_type)]
 #![feature(ptr_internals)]
 #![feature(thread_local)]
-#![cfg_attr(feature = "sim", feature(unchecked_math))]
 #![allow(clippy::missing_safety_doc)]
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
+#![allow(static_mut_refs)]
 
 #[cfg(all(feature = "sim", feature = "hyper"))]
 compile_error!("feature \"sim\" and feature \"hyper\" cannot be enabled at the same time");
@@ -41,16 +40,22 @@ extern crate alloc;
 
 #[macro_use]
 extern crate sgx_types;
+#[cfg(not(feature = "use_sgx_sdk"))]
 extern crate sgx_crypto_sys;
+#[cfg(not(feature = "use_sgx_sdk"))]
 extern crate sgx_tlibc_sys;
 
 #[macro_use]
 mod arch;
+#[cfg(not(feature = "use_sgx_sdk"))]
 mod asm;
+#[cfg(feature = "use_sgx_sdk")]
+mod asm_sgx_sdk;
 mod call;
 #[macro_use]
 mod elf;
 mod enclave;
+
 mod inst;
 #[cfg(not(feature = "hyper"))]
 mod pkru;
@@ -58,9 +63,14 @@ mod stackchk;
 mod version;
 mod xsave;
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 pub mod capi;
-pub mod edmm;
+#[cfg(feature = "use_sgx_sdk")]
+pub mod capi_sgx_sdk;
 
+#[cfg(not(any(feature = "sim", feature = "hyper")))]
+pub mod aexnotify;
+pub mod edmm;
 pub mod error;
 #[macro_use]
 pub mod feature;

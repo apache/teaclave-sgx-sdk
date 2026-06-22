@@ -156,7 +156,6 @@ impl PathEx for Path {
     ///
     /// This is a convenience function that coerces errors to false. If you want to
     /// check errors, call [`fs::metadata`].
-    #[must_use]
     #[inline]
     fn exists(&self) -> bool {
         fs::metadata(self).is_ok()
@@ -216,7 +215,6 @@ impl PathEx for Path {
     /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
     /// a Unix-like system for example. See [`fs::File::open`] or
     /// [`fs::OpenOptions::open`] for more information.
-    #[must_use]
     fn is_file(&self) -> bool {
         fs::metadata(self).map(|m| m.is_file()).unwrap_or(false)
     }
@@ -243,7 +241,6 @@ impl PathEx for Path {
     /// This is a convenience function that coerces errors to false. If you want to
     /// check errors, call [`fs::metadata`] and handle its [`Result`]. Then call
     /// [`fs::Metadata::is_dir`] if it was [`Ok`].
-    #[must_use]
     fn is_dir(&self) -> bool {
         fs::metadata(self).map(|m| m.is_dir()).unwrap_or(false)
     }
@@ -269,7 +266,6 @@ impl PathEx for Path {
     /// assert_eq!(link_path.is_symlink(), true);
     /// assert_eq!(link_path.exists(), false);
     /// ```
-    #[must_use]
     fn is_symlink(&self) -> bool {
         fs::symlink_metadata(self).map(|m| m.is_symlink()).unwrap_or(false)
     }

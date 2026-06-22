@@ -24,6 +24,14 @@ mod ocalloc;
 #[cfg(feature = "hyper")]
 pub(crate) use msbuf::MsbufInfo;
 
-pub use ecall::{ecall, ECallIndex, FIRST_ECALL};
-pub use ocall::{ocall, oret, OCallIndex};
-pub use ocalloc::{OcAlloc, OcBuffer};
+pub use ecall::FIRST_ECALL;
+#[cfg(not(feature = "use_sgx_sdk"))]
+pub use ecall::{ecall, ECallIndex};
+pub use ocall::ocall;
+#[cfg(not(feature = "use_sgx_sdk"))]
+pub use ocall::oret;
+#[cfg(not(all(feature = "use_sgx_sdk", any(feature = "sim", feature = "hyper"))))]
+pub use ocall::OCallIndex;
+#[cfg(not(any(feature = "sim", feature = "hyper")))]
+pub use ocalloc::OcAlloc;
+pub use ocalloc::OcBuffer;

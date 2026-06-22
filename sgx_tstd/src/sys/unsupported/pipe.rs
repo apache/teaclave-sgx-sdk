@@ -32,7 +32,7 @@ impl AnonPipe {
         unsupported()
     }
 
-    pub fn read_buf(&self, _buf: BorrowedCursor<'_>) -> io::Result<()> {
+    pub fn read_buf(&self, _buf: BorrowedCursor<'_, u8>) -> io::Result<()> {
         unsupported()
     }
 

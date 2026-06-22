@@ -66,7 +66,7 @@ impl<T: PartialEq> PartialEq for OnceCell<T> {
 
 impl<T: Eq> Eq for OnceCell<T> {}
 
-impl<T> const From<T> for OnceCell<T> {
+impl<T> From<T> for OnceCell<T> {
     /// Creates a new `OnceCell<T>` which already contains the given `value`.
     fn from(value: T) -> Self {
         OnceCell {

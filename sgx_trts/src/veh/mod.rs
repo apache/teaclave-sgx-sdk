@@ -19,6 +19,7 @@ mod exception;
 mod list;
 mod register;
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 pub(crate) use exception::handle;
 
 pub use register::*;

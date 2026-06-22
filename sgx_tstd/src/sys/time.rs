@@ -26,8 +26,6 @@ pub const UNIX_EPOCH: SystemTime = SystemTime { t: Timespec::zero() };
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-#[rustc_layout_scalar_valid_range_start(0)]
-#[rustc_layout_scalar_valid_range_end(999_999_999)]
 struct Nanoseconds(u32);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -86,7 +84,7 @@ impl Timespec {
     const fn new(tv_sec: i64, tv_nsec: i64) -> Timespec {
         assert!(tv_nsec >= 0 && tv_nsec < NSEC_PER_SEC as i64);
         // SAFETY: The assert above checks tv_nsec is within the valid range
-        Timespec { tv_sec, tv_nsec: unsafe { Nanoseconds(tv_nsec as u32) } }
+        Timespec { tv_sec, tv_nsec: Nanoseconds(tv_nsec as u32) }
     }
 
     pub fn now(clock: libc::clockid_t) -> Timespec {

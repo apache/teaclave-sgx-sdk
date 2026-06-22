@@ -132,7 +132,6 @@ macro_rules! f {
         $($body:stmt);*
     })*) => ($(
         #[no_mangle]
-        #[inline]
         pub $($constness)* unsafe extern "C" fn $i($($arg: $argty),*) -> $ret {
             $($body)*
         }
@@ -147,7 +146,7 @@ macro_rules! safe_f {
     })*) => ($(
         #[inline]
         $(#[$attr])*
-        pub $($constness)* extern fn $i($($arg: $argty),*
+        pub $($constness)* extern "C" fn $i($($arg: $argty),*
         ) -> $ret {
             $($body);*
         }

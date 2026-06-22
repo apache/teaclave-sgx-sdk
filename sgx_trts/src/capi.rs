@@ -30,13 +30,11 @@ use core::ptr;
 use core::slice;
 use sgx_types::error::SgxStatus;
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_get_enclave_mode() -> i32 {
     enclave_mode() as i32
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_register_exception_handler(
     first: i32,
@@ -48,7 +46,6 @@ pub unsafe extern "C" fn sgx_register_exception_handler(
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_unregister_exception_handler(handle: *const c_void) -> i32 {
     let handle = Handle::from_raw(handle as u64);
@@ -56,67 +53,56 @@ pub unsafe extern "C" fn sgx_unregister_exception_handler(handle: *const c_void)
     i32::from(result)
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_image_base() -> *const u8 {
     MmLayout::image_base() as *const u8
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_image_size() -> usize {
     MmLayout::image_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_elrange_base() -> *const u8 {
     MmLayout::elrange_base() as *const u8
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_elrange_size() -> usize {
     MmLayout::elrange_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_heap_base() -> *const u8 {
     MmLayout::heap_base() as *const u8
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_heap_size() -> usize {
     MmLayout::heap_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_heap_min_size() -> usize {
     MmLayout::heap_min_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_rsrvmem_base() -> *const u8 {
     MmLayout::rsrvmem_base() as *const u8
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_rsrvmem_size() -> usize {
     MmLayout::rsrvmem_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_rsrvmem_min_size() -> usize {
     MmLayout::rsrvmem_min_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_rsrvmm_default_perm() -> u32 {
     MmLayout::rsrvmm_default_perm() as u32
@@ -128,49 +114,41 @@ pub extern "C" fn sgx_is_enclave_crashed() -> i32 {
     i32::from(enclave::state::is_crashed())
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_tcs_max_num() -> usize {
     tcs_max_num()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_tcs_policy() -> u32 {
     tcs_policy() as u32
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_stack_size() -> usize {
     stack_size()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_get_cpu_core_num() -> u32 {
     cpu_core_num()
 }
 
-#[inline]
 #[no_mangle]
 pub extern "C" fn sgx_is_supported_edmm() -> bool {
     is_supported_edmm()
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_is_within_enclave(p: *const u8, len: usize) -> i32 {
     i32::from(enclave::is_within_enclave(p, len))
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_is_outside_enclave(p: *const u8, len: usize) -> i32 {
     i32::from(enclave::is_within_host(p, len))
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_ocall(idx: i32, ms: *mut c_void) -> u32 {
     if let Ok(index) = OCallIndex::try_from(idx) {
@@ -184,7 +162,6 @@ pub unsafe extern "C" fn sgx_ocall(idx: i32, ms: *mut c_void) -> u32 {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_ocalloc(size: usize) -> *mut u8 {
     if let Some(size) = NonZeroUsize::new(size) {
@@ -196,7 +173,6 @@ pub unsafe extern "C" fn sgx_ocalloc(size: usize) -> *mut u8 {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_ocalloc_aligned(align: usize, size: usize) -> *mut u8 {
     let size = match NonZeroUsize::new(size) {
@@ -212,7 +188,6 @@ pub unsafe extern "C" fn sgx_ocalloc_aligned(align: usize, size: usize) -> *mut 
         .unwrap_or(ptr::null_mut())
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_ocfree() {
     if OcBuffer::free().is_err() {
@@ -220,13 +195,11 @@ pub unsafe extern "C" fn sgx_ocfree() {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_ocremain_size() -> usize {
     OcBuffer::remain_size()
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_apply_epc_pages(addr: usize, count: usize) -> i32 {
     if apply_epc_pages(addr, count).is_ok() {
@@ -236,7 +209,6 @@ pub unsafe extern "C" fn sgx_apply_epc_pages(addr: usize, count: usize) -> i32 {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_trim_epc_pages(addr: usize, count: usize) -> i32 {
     if trim_epc_pages(addr, count).is_ok() {
@@ -247,7 +219,6 @@ pub unsafe extern "C" fn sgx_trim_epc_pages(addr: usize, count: usize) -> i32 {
 }
 
 #[allow(clippy::redundant_closure)]
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn atexit(f: extern "C" fn()) -> i32 {
     if !enclave::is_within_enclave(f as *const u8, 0) {
@@ -262,7 +233,6 @@ pub unsafe extern "C" fn atexit(f: extern "C" fn()) -> i32 {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_read_rand(p: *mut u8, len: usize) -> u32 {
     if p.is_null() || len == 0 {
@@ -276,7 +246,6 @@ pub unsafe extern "C" fn sgx_read_rand(p: *mut u8, len: usize) -> u32 {
     }
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn get_thread_data() -> *const c_void {
     current().tds() as *const _ as *const c_void
@@ -285,20 +254,17 @@ pub unsafe extern "C" fn get_thread_data() -> *const c_void {
 pub type sgx_thread_t = *const c_void;
 pub const SGX_THREAD_T_NULL: *const c_void = ptr::null();
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_thread_self() -> sgx_thread_t {
     get_thread_data()
 }
 
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_thread_equal(a: sgx_thread_t, b: sgx_thread_t) -> i32 {
     i32::from(a == b)
 }
 
 #[cfg(not(feature = "hyper"))]
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_rdpkru(val: *mut u32) -> i32 {
     if val.is_null() {
@@ -315,7 +281,6 @@ pub unsafe extern "C" fn sgx_rdpkru(val: *mut u32) -> i32 {
 }
 
 #[cfg(not(feature = "hyper"))]
-#[inline]
 #[no_mangle]
 pub unsafe extern "C" fn sgx_wrpkru(val: u32) -> i32 {
     match crate::pkru::Pkru::write(val) {
