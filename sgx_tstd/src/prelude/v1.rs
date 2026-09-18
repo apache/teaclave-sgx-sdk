@@ -45,16 +45,15 @@ pub use crate::result::Result::{self, Err, Ok};
 #[allow(deprecated)]
 #[doc(no_inline)]
 pub use core::prelude::v1::{
-    assert, cfg, column, compile_error, concat, concat_idents, env, file, format_args,
-    format_args_nl, include, include_bytes, include_str, line, log_syntax, module_path, option_env,
-    stringify, trace_macros, Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd,
+    assert, assert_eq, assert_ne, cfg, column, compile_error, concat, debug_assert,
+    debug_assert_eq, debug_assert_ne, env, file, format_args, include, include_bytes,
+    include_str, line, log_syntax, matches, module_path, option_env, stringify, todo,
+    r#try, trace_macros, unimplemented, unreachable, write, writeln,
+    Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd,
 };
 
 #[doc(no_inline)]
 pub use core::prelude::v1::concat_bytes;
-
-#[allow(deprecated)]
-pub use core::prelude::v1::{RustcDecodable, RustcEncodable};
 
 // Do not `doc(no_inline)` so that they become doc items on their own
 // (no public module for them to be re-exported from).
@@ -82,3 +81,22 @@ pub use crate::boxed::Box;
 pub use crate::string::{String, ToString};
 #[doc(no_inline)]
 pub use crate::vec::Vec;
+
+// Std-defined macros that belong in the prelude (matching std::prelude::v1).
+// Without these, downstream crates built with the `std` feature cannot resolve
+// `panic!` (e.g. via `debug_assert!`), `vec!`, `format!`, etc. unqualified.
+#[doc(no_inline)]
+pub use crate::{dbg, eprint, eprintln, format, print, println, thread_local};
+
+// `vec` and `panic` would be ambiguous with the modules of the same name, so
+// shadow those modules with private empty modules and glob-export only the
+// macros (this mirrors std's own prelude mechanism).
+mod ambiguous_macros_only {
+    #[allow(hidden_glob_reexports)]
+    mod vec {}
+    #[allow(hidden_glob_reexports)]
+    mod panic {}
+    pub use crate::*;
+}
+#[doc(no_inline)]
+pub use self::ambiguous_macros_only::{panic, vec};

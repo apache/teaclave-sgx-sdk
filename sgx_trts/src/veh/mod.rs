@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod altstack;
 mod exception;
 mod list;
 mod register;
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 pub(crate) use exception::handle;
 
+pub use altstack::{register_alt_stack, unregister_alt_stack, MAX_ALT_STACKS};
 pub use register::*;

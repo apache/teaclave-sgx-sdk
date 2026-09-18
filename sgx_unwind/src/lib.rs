@@ -19,7 +19,6 @@
 #![cfg_attr(target_vendor = "teaclave", feature(rustc_private))]
 #![unstable(feature = "panic_unwind", issue = "32837")]
 #![feature(staged_api)]
-#![feature(c_unwind)]
 #![allow(internal_features)]
 #![allow(clippy::upper_case_acronyms)]
 

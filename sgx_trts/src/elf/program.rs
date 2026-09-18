@@ -42,10 +42,10 @@ pub fn parse_program_header<'a>(
 
     match header.pt1.class() {
         Class::ThirtyTwo => Ok(ProgramHeader::Ph32(read(unsafe {
-            input.as_slice().into_slice_unchecked((start, end))
+            AsSlice::as_slice(input).into_slice_unchecked((start, end))
         }))),
         Class::SixtyFour => Ok(ProgramHeader::Ph64(read(unsafe {
-            input.as_slice().into_slice_unchecked((start, end))
+            AsSlice::as_slice(input).into_slice_unchecked((start, end))
         }))),
         Class::None | Class::Other(_) => abort(),
     }
@@ -240,7 +240,7 @@ macro_rules! ph_impl {
                     Err(_) => false,
                 });
                 unsafe {
-                    elf_file.input.as_slice().into_slice_unchecked((
+                    AsSlice::as_slice(elf_file.input).into_slice_unchecked((
                         self.physical_addr as usize,
                         (self.physical_addr + self.file_size) as usize,
                     ))

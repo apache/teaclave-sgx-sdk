@@ -17,7 +17,6 @@
 
 use crate::cmp;
 use crate::io::{self, BorrowedBuf, BorrowedCursor, IoSlice, IoSliceMut};
-use crate::mem::MaybeUninit;
 use crate::net::{Shutdown, SocketAddr};
 use crate::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, RawFd};
 use crate::sys::fd::FileDesc;
@@ -187,17 +186,17 @@ impl Socket {
         self.0.duplicate().map(Socket)
     }
 
-    fn recv_with_flags(&self, mut buf: BorrowedCursor<'_>, flags: c_int) -> io::Result<()> {
+    fn recv_with_flags(&self, mut buf: BorrowedCursor<'_, u8>, flags: c_int) -> io::Result<()> {
         let ret = cvt_ocall(unsafe {
             libc::recv(
                 self.as_raw_fd(),
-                MaybeUninit::slice_assume_init_mut(buf.as_mut()),
+                buf.as_mut().assume_init_mut(),
                 flags,
             )
         })?;
-        unsafe {
-            buf.advance(ret as usize);
-        }
+
+        unsafe { buf.advance(ret as usize) };
+
         Ok(())
     }
 
@@ -213,7 +212,7 @@ impl Socket {
         Ok(buf.len())
     }
 
-    pub fn read_buf(&self, buf: BorrowedCursor<'_>) -> io::Result<()> {
+    pub fn read_buf(&self, buf: BorrowedCursor<'_, u8>) -> io::Result<()> {
         self.recv_with_flags(buf, 0)
     }
 

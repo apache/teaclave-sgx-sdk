@@ -100,6 +100,7 @@ pub fn ocall<T>(idx: OCallIndex, ms: Option<&mut T>) -> SgxResult {
     }
 }
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[no_mangle]
 pub unsafe extern "C" fn update_ocall_lastsp(context: &mut OCallContext) -> usize {
     let mut tc = tcs::current();
@@ -127,6 +128,13 @@ pub fn oret(ret: usize) -> SgxResult {
 
     let mut tc = tcs::current();
     let tds = tc.tds_mut();
+
+    #[cfg(not(any(feature = "sim", feature = "hyper")))]
+    if tds.aex_notify_flag == 1 {
+        tds.aex_notify_flag = 0;
+        let _ = crate::aexnotify::AEXNotify::set(true);
+    }
+
     let last_sp = tds.last_sp;
     let context = unsafe { &*(tds.last_sp as *const OCallContext) };
     if last_sp == 0 || last_sp <= &context as *const _ as usize {

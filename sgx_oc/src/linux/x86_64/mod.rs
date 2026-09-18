@@ -315,11 +315,12 @@ s! {
         pub __val: [u64; 16],
     }
 
+    #[allow(unpredictable_function_pointer_comparisons)]
     pub struct sigaction {
         pub sa_sigaction: sighandler_t,
         pub sa_mask: sigset_t,
         pub sa_flags: c_int,
-        pub sa_restorer: Option<extern fn()>,
+        pub sa_restorer: Option<extern "C" fn()>,
     }
     pub struct siginfo_t {
         pub si_signo: c_int,

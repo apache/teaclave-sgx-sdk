@@ -57,16 +57,6 @@ use core::convert::identity as unlikely;
 #[cfg(feature = "nightly")]
 use core::intrinsics::{likely, unlikely};
 
-// Use strict provenance functions if available.
-#[cfg(feature = "nightly")]
-use core::ptr::invalid_mut;
-// Implement it with a cast otherwise.
-#[cfg(not(feature = "nightly"))]
-#[inline(always)]
-fn invalid_mut<T>(addr: usize) -> *mut T {
-    addr as *mut T
-}
-
 #[inline]
 unsafe fn offset_from<T>(to: *const T, from: *const T) -> usize {
     to.offset_from(from) as usize
@@ -379,7 +369,7 @@ impl<T> Bucket<T> {
             // won't overflow because index must be less than length (bucket_mask)
             // and bucket_mask is guaranteed to be less than `isize::MAX`
             // (see TableLayout::calculate_layout_for method)
-            invalid_mut(index + 1)
+            ptr::without_provenance_mut(index + 1)
         } else {
             base.as_ptr().sub(index)
         };
@@ -516,7 +506,7 @@ impl<T> Bucket<T> {
         if T::IS_ZERO_SIZED {
             // Just return an arbitrary ZST pointer which is properly aligned
             // invalid pointer is good enough for ZST
-            invalid_mut(mem::align_of::<T>())
+            ptr::without_provenance_mut(mem::align_of::<T>())
         } else {
             unsafe { self.ptr.as_ptr().sub(1) }
         }
@@ -563,7 +553,7 @@ impl<T> Bucket<T> {
     unsafe fn next_n(&self, offset: usize) -> Self {
         let ptr = if T::IS_ZERO_SIZED {
             // invalid pointer is good enough for ZST
-            invalid_mut(self.ptr.as_ptr() as usize + offset)
+            ptr::without_provenance_mut(self.ptr.as_ptr() as usize + offset)
         } else {
             self.ptr.as_ptr().sub(offset)
         };
@@ -941,13 +931,6 @@ impl<T, A: Allocator> RawTable<T, A> {
         // P.S. `h1(hash) & self.bucket_mask` is the same as `hash as usize % self.buckets()` because the number
         // of buckets is a power of two, and `self.bucket_mask = self.buckets() - 1`.
         unsafe { NonNull::new_unchecked(self.table.ctrl.as_ptr().cast()) }
-    }
-
-    /// Returns pointer to start of data table.
-    #[inline]
-    #[cfg(any(feature = "raw", feature = "nightly"))]
-    pub unsafe fn data_start(&self) -> NonNull<T> {
-        NonNull::new_unchecked(self.data_end().as_ptr().wrapping_sub(self.buckets()))
     }
 
     /// Return the information about memory allocated by the table.
@@ -3541,33 +3524,17 @@ impl<T: Clone, A: Allocator + Clone> Clone for RawTable<T, A> {
     }
 }
 
-/// Specialization of `clone_from` for `Copy` types
+// NOTE (Privasys fork): newer nightly `min_specialization` forbids specializing
+// on `Copy`, so the bulk-memcpy specialization for `Copy` element types was
+// removed. All clones go through the generic per-element `clone_from_impl` path;
+// correctness is identical and table-clone is not an enclave hot path.
 trait RawTableClone {
     unsafe fn clone_from_spec(&mut self, source: &Self);
 }
 impl<T: Clone, A: Allocator + Clone> RawTableClone for RawTable<T, A> {
-    default_fn! {
-        #[cfg_attr(feature = "inline-more", inline)]
-        unsafe fn clone_from_spec(&mut self, source: &Self) {
-            self.clone_from_impl(source);
-        }
-    }
-}
-#[cfg(feature = "nightly")]
-impl<T: Copy, A: Allocator + Clone> RawTableClone for RawTable<T, A> {
     #[cfg_attr(feature = "inline-more", inline)]
     unsafe fn clone_from_spec(&mut self, source: &Self) {
-        source
-            .table
-            .ctrl(0)
-            .copy_to_nonoverlapping(self.table.ctrl(0), self.table.num_ctrl_bytes());
-        source
-            .data_start()
-            .as_ptr()
-            .copy_to_nonoverlapping(self.data_start().as_ptr(), self.table.buckets());
-
-        self.table.items = source.table.items;
-        self.table.growth_left = source.table.growth_left;
+        self.clone_from_impl(source);
     }
 }
 
@@ -4358,11 +4325,13 @@ impl<T, A: Allocator> FusedIterator for RawDrain<'_, T, A> {}
 ///   created will be yielded by that iterator.
 /// - The order in which the iterator yields buckets is unspecified and may
 ///   change in the future.
+#[allow(dead_code)]
 pub struct RawIterHash<T> {
     inner: RawIterHashInner,
     _marker: PhantomData<T>,
 }
 
+#[allow(dead_code)]
 struct RawIterHashInner {
     // See `RawTableInner`'s corresponding fields for details.
     // We can't store a `*const RawTableInner` as it would get

@@ -74,7 +74,7 @@ impl<T> SpinRwLock<T> {
 
 impl<T: ?Sized> SpinRwLock<T> {
     #[inline]
-    pub fn read(&self) -> SpinRwLockReadGuard<T> {
+    pub fn read(&self) -> SpinRwLockReadGuard<'_, T> {
         loop {
             match self.try_read() {
                 Some(guard) => return guard,
@@ -84,7 +84,7 @@ impl<T: ?Sized> SpinRwLock<T> {
     }
 
     #[inline]
-    pub fn write(&self) -> SpinRwLockWriteGuard<T> {
+    pub fn write(&self) -> SpinRwLockWriteGuard<'_, T> {
         loop {
             match self.try_write_internal(false) {
                 Some(guard) => return guard,
@@ -94,7 +94,7 @@ impl<T: ?Sized> SpinRwLock<T> {
     }
 
     #[inline]
-    pub fn try_read(&self) -> Option<SpinRwLockReadGuard<T>> {
+    pub fn try_read(&self) -> Option<SpinRwLockReadGuard<'_, T>> {
         let value = self.lock.fetch_add(READER, Ordering::Acquire);
         if value & WRITER != 0 {
             self.lock.fetch_sub(READER, Ordering::Release);
@@ -108,12 +108,12 @@ impl<T: ?Sized> SpinRwLock<T> {
     }
 
     #[inline]
-    pub fn try_write(&self) -> Option<SpinRwLockWriteGuard<T>> {
+    pub fn try_write(&self) -> Option<SpinRwLockWriteGuard<'_, T>> {
         self.try_write_internal(true)
     }
 
     #[inline(always)]
-    fn try_write_internal(&self, strong: bool) -> Option<SpinRwLockWriteGuard<T>> {
+    fn try_write_internal(&self, strong: bool) -> Option<SpinRwLockWriteGuard<'_, T>> {
         if compare_exchange(
             &self.lock,
             0,

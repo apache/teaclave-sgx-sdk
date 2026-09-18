@@ -106,11 +106,29 @@ typedef struct _cpu_context_t
 } sgx_cpu_context_t;
 #endif
 
+typedef struct _exinfo_t
+{
+    uint64_t               faulting_address;
+    uint32_t               error_code;
+    uint32_t               reserved;
+}sgx_misc_exinfo_t;
+
+ __attribute__((aligned(64)))
 typedef struct _exception_info_t
 {
     sgx_cpu_context_t      cpu_context;
     sgx_exception_vector_t exception_vector;
     sgx_exception_type_t   exception_type;
+    sgx_misc_exinfo_t      exinfo;
+    uint32_t               exception_valid;
+    uint32_t               do_aex_mitigation;
+    uint64_t               xsave_size;
+#if defined (_M_X64) || defined (__x86_64__)
+    uint64_t               reserved[1];
+#else
+    uint64_t               reserved[6];
+#endif
+    uint8_t                xsave_area[0];    // 64-byte aligned
 } sgx_exception_info_t;
 
 typedef int (*sgx_exception_handler_t)(sgx_exception_info_t *info);
@@ -142,6 +160,27 @@ void * SGXAPI sgx_register_exception_handler(int is_first_handler, sgx_exception
  *              0 - fail
 */
 int SGXAPI sgx_unregister_exception_handler(void *handler);
+
+/* sgx_register_alt_stack()
+ *      register enclave memory as a stack that exceptions may be raised on,
+ *      e.g. a coroutine or fiber stack. Without it, an exception raised while
+ *      the stack pointer is outside the thread's stack crashes the enclave.
+ * Parameter
+ *      addr - lowest address of the stack (enclave memory).
+ *      size - size of the stack in bytes.
+ * Return Value
+ *      none zero - handle to pass to sgx_unregister_alt_stack
+ *              0 - fail
+*/
+size_t SGXAPI sgx_register_alt_stack(const void *addr, size_t size);
+
+/* sgx_unregister_alt_stack()
+ *      remove a stack registered with sgx_register_alt_stack.
+ * Return Value
+ *      none zero - success
+ *              0 - fail
+*/
+int SGXAPI sgx_unregister_alt_stack(size_t handle);
 
 
 #ifdef __cplusplus

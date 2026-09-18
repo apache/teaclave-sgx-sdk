@@ -134,18 +134,7 @@ pub fn take_alloc_error_hook() -> fn(Layout) {
 }
 
 fn default_alloc_error_hook(layout: Layout) {
-    extern "Rust" {
-        // This symbol is emitted by rustc next to __rust_alloc_error_handler.
-        // Its value depends on the -Zoom={panic,abort} compiler option.
-        static __rust_alloc_error_handler_should_panic: u8;
-    }
-
-    #[allow(unused_unsafe)]
-    if unsafe { __rust_alloc_error_handler_should_panic != 0 } {
-        panic!("memory allocation of {} bytes failed", layout.size());
-    } else {
-        rtprintpanic!("memory allocation of {} bytes failed\n", layout.size());
-    }
+    panic!("memory allocation of {} bytes failed", layout.size());
 }
 
 #[doc(hidden)]
@@ -172,7 +161,7 @@ pub mod __default_lib_allocator {
     // linkage directives are provided as part of the current compiler allocator
     // ABI
 
-    #[rustc_std_internal_symbol]
+    #[no_mangle]
     pub unsafe extern "C" fn __rdl_alloc(size: usize, align: usize) -> *mut u8 {
         // SAFETY: see the guarantees expected by `Layout::from_size_align` and
         // `GlobalAlloc::alloc`.
@@ -180,14 +169,14 @@ pub mod __default_lib_allocator {
         System.alloc(layout)
     }
 
-    #[rustc_std_internal_symbol]
+    #[no_mangle]
     pub unsafe extern "C" fn __rdl_dealloc(ptr: *mut u8, size: usize, align: usize) {
         // SAFETY: see the guarantees expected by `Layout::from_size_align` and
         // `GlobalAlloc::dealloc`.
         System.dealloc(ptr, Layout::from_size_align_unchecked(size, align))
     }
 
-    #[rustc_std_internal_symbol]
+    #[no_mangle]
     pub unsafe extern "C" fn __rdl_realloc(
         ptr: *mut u8,
         old_size: usize,
@@ -200,7 +189,7 @@ pub mod __default_lib_allocator {
         System.realloc(ptr, old_layout, new_size)
     }
 
-    #[rustc_std_internal_symbol]
+    #[no_mangle]
     pub unsafe extern "C" fn __rdl_alloc_zeroed(size: usize, align: usize) -> *mut u8 {
         // SAFETY: see the guarantees expected by `Layout::from_size_align` and
         // `GlobalAlloc::alloc_zeroed`.

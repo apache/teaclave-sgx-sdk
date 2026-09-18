@@ -29,7 +29,7 @@ use crate::sys::unsupported::pipe::AnonPipe;
 use crate::sys::unsupported::{unsupported, unsupported_err};
 use crate::sys_common::IntoInner;
 use crate::sys_common::process::{CommandEnv, CommandEnvs};
-use core::ffi::NonZero_c_int;
+use core::num::NonZero;
 
 use sgx_oc as libc;
 use libc::{c_int, gid_t, pid_t, uid_t};
@@ -197,7 +197,7 @@ impl ExitStatus {
         // https://pubs.opengroup.org/onlinepubs/9699919799/functions/wait.html .  If it is not
         // true for a platform pretending to be Unix, the tests (our doctests, and also
         // procsss_unix/tests.rs) will spot it.  `ExitStatusError::code` assumes this too.
-        match NonZero_c_int::try_from(self.0) {
+        match NonZero::<c_int>::try_from(self.0) {
             /* was nonzero */ Ok(failure) => Err(ExitStatusError(failure)),
             /* was zero, couldn't convert */ Err(_) => Ok(()),
         }
@@ -301,7 +301,7 @@ impl fmt::Display for ExitStatus {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct ExitStatusError(NonZero_c_int);
+pub struct ExitStatusError(NonZero<c_int>);
 
 #[allow(clippy::from_over_into)]
 impl Into<ExitStatus> for ExitStatusError {

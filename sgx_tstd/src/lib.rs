@@ -34,14 +34,15 @@
 #![cfg_attr(target_vendor = "teaclave", feature(rustc_private))]
 
 #![needs_panic_runtime]
-#![allow(non_camel_case_types)]
-#![allow(unused_must_use)]
 #![allow(dead_code)]
 #![allow(deprecated)]
 #![allow(incomplete_features)]
 #![allow(internal_features)]
+#![allow(non_camel_case_types)]
+#![allow(static_mut_refs)]
 #![allow(unused_assignments)]
- #![allow(unused_features)]
+#![allow(unused_features)]
+#![allow(unused_must_use)]
 #![allow(clippy::assertions_on_constants)]
 #![allow(clippy::err_expect)]
 #![allow(clippy::explicit_auto_deref)]
@@ -62,57 +63,49 @@
 #![feature(allocator_internals)]
 #![feature(allow_internal_unsafe)]
 #![feature(allow_internal_unstable)]
-#![feature(c_unwind)]
-#![feature(concat_idents)]
-#![feature(const_mut_refs)]
 #![feature(const_trait_impl)]
 #![feature(decl_macro)]
 #![feature(dropck_eyepatch)]
-#![feature(if_let_guard)]
 #![feature(lang_items)]
-#![feature(let_chains)]
 #![feature(min_specialization)]
 #![feature(must_not_suspend)]
 #![feature(needs_panic_runtime)]
 #![feature(negative_impls)]
 #![feature(never_type)]
 #![feature(prelude_import)]
+#![feature(formatting_options)]
 #![feature(rustc_attrs)]
 #![feature(thread_local)]
 #![feature(try_blocks)]
 #![feature(type_alias_impl_trait)]
-#![feature(utf8_chunks)]
+// #![feature(utf8_chunks)]
 //
 // Library features (core):
 // tidy-alphabetical-start
 #![feature(char_internals)]
 #![feature(core_intrinsics)]
 #![feature(core_io_borrowed_buf)]
+#![feature(borrowed_buf_init)]
+#![feature(core_io)]
+#![feature(core_io_internals)]
 #![feature(duration_constants)]
 #![feature(error_generic_member_access)]
-#![feature(error_in_core)]
 #![feature(error_iter)]
 #![feature(exact_size_is_empty)]
 #![feature(exclusive_wrapper)]
 #![feature(extend_one)]
 #![feature(float_minimum_maximum)]
+#![feature(fmt_internals)]
 #![feature(hasher_prefixfree_extras)]
 #![feature(hashmap_internals)]
 #![feature(ip)]
-#![feature(ip_in_core)]
-#![feature(maybe_uninit_slice)]
-#![feature(maybe_uninit_uninit_array)]
-#![feature(maybe_uninit_write_slice)]
+#![feature(maybe_uninit_fill)]
 #![feature(panic_can_unwind)]
-#![feature(panic_info_message)]
 #![feature(panic_internals)]
-#![feature(prelude_2024)]
 #![feature(ptr_as_uninit)]
-#![feature(raw_os_nonzero)]
 #![feature(slice_internals)]
 #![feature(std_internals)]
 #![feature(str_internals)]
-#![feature(strict_provenance)]
 #![feature(type_ascription)]
 // tidy-alphabetical-end
 //
@@ -121,10 +114,8 @@
 #![feature(allocator_api)]
 #![feature(get_mut_unchecked)]
 #![feature(map_try_insert)]
-#![feature(new_uninit)]
 #![feature(slice_concat_trait)]
 #![feature(try_reserve_kind)]
-#![feature(vec_into_raw_parts)]
 // tidy-alphabetical-end
 //
 // Library features (unwind):
@@ -134,38 +125,32 @@
 //
 // Only for re-exporting:
 // tidy-alphabetical-start
-#![feature(assert_matches)]
 #![feature(async_iterator)]
 #![feature(c_variadic)]
 #![feature(cfg_accessible)]
 #![feature(cfg_eval)]
 #![feature(concat_bytes)]
 #![feature(const_format_args)]
-#![feature(core_panic)]
 #![feature(custom_test_frameworks)]
 #![feature(edition_panic)]
 #![feature(format_args_nl)]
-#![feature(lazy_cell)]
 #![feature(log_syntax)]
 #![feature(test)]
 #![feature(trace_macros)]
-// tidy-alphabetical-end
-//
-// Only used in tests/benchmarks:
-//
-// Only for const-ness:
-// tidy-alphabetical-start
-#![feature(const_hash)]
+#![feature(core_float_math)]
 // tidy-alphabetical-end
 //
 
 #![default_lib_allocator]
 
-// Explicitly import the prelude. The compiler uses this same unstable attribute
-// to import the prelude implicitly when building crates that depend on std.
-#[prelude_import]
-#[allow(unused)]
-use prelude::rust_2021::*;
+#[cfg(feature = "backtrace")]
+extern crate sgx_backtrace_sys;
+#[cfg(feature = "backtrace")]
+extern crate sgx_demangle;
+extern crate sgx_alloc;
+
+#[global_allocator]
+static GLOBAL: sgx_alloc::System = sgx_alloc::System;
 
 extern crate hashbrown;
 
@@ -175,11 +160,6 @@ extern crate alloc as alloc_crate;
 
 // We always need an unwinder currently for backtraces
 extern crate sgx_unwind;
-#[cfg(feature = "backtrace")]
-extern crate sgx_backtrace_sys;
-#[cfg(feature = "backtrace")]
-extern crate sgx_demangle;
-extern crate sgx_alloc;
 
 #[macro_use]
 extern crate sgx_types;
@@ -203,6 +183,10 @@ pub mod rt;
 
 // The Rust prelude
 pub mod prelude;
+
+#[prelude_import]
+#[allow(unused)]
+use prelude::rust_2021::*;
 
 // Public module declarations and re-exports
 pub use alloc_crate::borrow;
@@ -255,6 +239,30 @@ pub mod thread;
 pub mod ascii;
 #[cfg(feature = "backtrace")]
 pub mod backtrace;
+// some libraries (typically anyhow) always assume backtrace is available when using std
+#[cfg(not(feature = "backtrace"))]
+pub mod backtrace {
+    pub struct Backtrace();
+    impl Backtrace {
+        pub fn capture() -> Backtrace {
+            Backtrace()
+        }
+        pub fn status(&self) -> BacktraceStatus {
+            BacktraceStatus::Unsupported
+        }
+    }
+    impl crate::fmt::Display for Backtrace {
+        fn fmt(&self, fmt: &mut crate::fmt::Formatter<'_>) -> crate::fmt::Result {
+            fmt.write_str("unsupported backtrace")
+        }
+    }
+    pub enum BacktraceStatus {
+        Unsupported,
+        Disabled,
+        Captured,
+    }
+}
+
 pub mod collections;
 pub mod env;
 pub mod error;
@@ -298,6 +306,7 @@ pub mod arch {
 }
 
 pub use sgx_trts::macros::is_x86_feature_detected;
+pub use sgx_trts::veh;
 
 // Platform-abstraction modules
 mod sys;
@@ -321,7 +330,7 @@ pub use core::{
 // Re-export built-in macros defined through core.
 #[allow(deprecated)]
 pub use core::{
-    assert, assert_matches, cfg, column, compile_error, concat, concat_idents, const_format_args,
+    assert, assert_matches, cfg, column, compile_error, concat, const_format_args,
     env, file, format_args, format_args_nl, include, include_bytes, include_str, line, log_syntax,
     module_path, option_env, stringify, trace_macros,
 };

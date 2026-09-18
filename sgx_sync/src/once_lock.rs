@@ -227,7 +227,7 @@ unsafe impl<T: Send> Send for OnceLock<T> {}
 impl<T: RefUnwindSafe + UnwindSafe> RefUnwindSafe for OnceLock<T> {}
 impl<T: UnwindSafe> UnwindSafe for OnceLock<T> {}
 
-impl<T> const Default for OnceLock<T> {
+impl<T> Default for OnceLock<T> {
     /// Creates a new empty cell.
     ///
     fn default() -> OnceLock<T> {

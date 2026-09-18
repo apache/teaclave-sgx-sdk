@@ -90,6 +90,16 @@ impl MmLayout {
     pub fn rsrvmm_default_perm() -> ProtectPerm {
         RsrvMem::get_or_init().perm
     }
+
+    #[inline]
+    pub fn user_region_mem_base() -> usize {
+        UserRegionMem::get_or_init().base
+    }
+
+    #[inline]
+    pub fn user_region_mem_size() -> usize {
+        UserRegionMem::get_or_init().size
+    }
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -101,7 +111,10 @@ pub struct Image {
     pub entry_address: usize,
 }
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[link_section = ".data.rel.ro"]
+static mut IMAGE: MaybeUninit<Image> = MaybeUninit::uninit();
+#[cfg(feature = "use_sgx_sdk")]
 static mut IMAGE: MaybeUninit<Image> = MaybeUninit::uninit();
 
 impl Image {
@@ -145,7 +158,13 @@ impl Image {
 
     #[inline]
     fn elrange_size() -> usize {
-        arch::Global::get().elrange_size as usize
+        let global_data = arch::Global::get();
+
+        if global_data.elrange_size != 0 {
+            global_data.elrange_size as usize
+        } else {
+            global_data.enclave_size
+        }
     }
 
     #[inline]
@@ -341,6 +360,58 @@ impl RsrvMem {
                 ptr::write_bytes(self.base as *mut u8, 0, zero_size);
             }
         }
+    }
+}
+
+pub struct UserRegionMem {
+    pub base: usize,
+    pub size: usize,
+}
+
+static mut USER_REGION_MEM: Option<UserRegionMem> = None;
+
+impl UserRegionMem {
+    pub fn get_or_init() -> &'static UserRegionMem {
+        unsafe {
+            if let Some(ref user_region_mem) = USER_REGION_MEM {
+                user_region_mem
+            } else {
+                let (base, size) = Self::layout();
+                USER_REGION_MEM = Some(UserRegionMem { base, size });
+                USER_REGION_MEM.as_ref().unwrap()
+            }
+        }
+    }
+
+    fn layout() -> (usize, usize) {
+        if SysFeatures::get().is_edmm() {
+            let layout_table = arch::Global::get().layout_table();
+            layout_table
+                .iter()
+                .find(|layout| unsafe { layout.entry.id == arch::LAYOUT_ID_USER_REGION })
+                .map(|layout| unsafe {
+                    (
+                        MmLayout::image_base() + layout.entry.rva as usize,
+                        (layout.entry.page_count as usize) << arch::SE_PAGE_SHIFT,
+                    )
+                })
+                .unwrap_or((0, 0))
+        } else {
+            (0, 0)
+        }
+    }
+
+    pub fn check(&self) -> bool {
+        if self.base == 0 {
+            return true;
+        }
+        if !(is_page_aligned!(self.base) && is_page_aligned!(self.size)) {
+            return false;
+        }
+        if self.size > usize::MAX - self.base {
+            return false;
+        }
+        true
     }
 }
 

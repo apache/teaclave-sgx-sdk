@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 use crate::arch::Tds;
+#[cfg(not(feature = "use_sgx_sdk"))]
 use crate::tcs::tc;
 
 #[repr(C)]
@@ -25,9 +27,14 @@ pub struct TlsIndex {
     offset: usize,
 }
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[no_mangle]
 pub unsafe extern "C" fn __tls_get_addr(ti: *const TlsIndex) -> *mut u8 {
     let ti = &*ti;
     let tds = Tds::from_raw(tc::get_tds());
     (tds.tls_addr + ti.offset) as *mut u8
+}
+#[cfg(feature = "use_sgx_sdk")]
+extern "C" {
+    pub fn __tls_get_addr(ti: *const TlsIndex) -> *mut u8;
 }

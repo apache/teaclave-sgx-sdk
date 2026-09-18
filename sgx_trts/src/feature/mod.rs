@@ -87,6 +87,14 @@ macro_rules! is_x86_feature_detected {
     ("bmi") => {
         $crate::feature::check_for($crate::feature::Feature::bmi)
     };
+    // although bmi1 should be an alias for bmi, and bmi2 always present
+    // on Intel processors if bmi1 is, it seems unreliable
+    ("bmi1") => {
+        false
+    };
+    ("bmi2") => {
+        false
+    };
     ("lzcnt") => {
         $crate::feature::check_for($crate::feature::Feature::lzcnt)
     };
@@ -194,6 +202,10 @@ macro_rules! is_x86_feature_detected {
     };
     ("pconfig") => {
         $crate::feature::check_for($crate::feature::Feature::pconfig)
+    };
+    // surely supported on SGX2 platforms (that we require)
+    ("cmpxchg16b") => {
+        true
     };
     ($t:tt,) => {
         is_x86_feature_detected!($t);

@@ -32,6 +32,7 @@ crate-type = ["rlib"]
 [features]
 default = []
 capi = []
+use_sgx_sdk = ["sgx_trts/use_sgx_sdk"]
 
 [dependencies]
 sgx_sync = { path = "../sgx_sync" }

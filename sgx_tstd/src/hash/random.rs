@@ -118,7 +118,7 @@ impl DefaultHasher {
     #[inline]
     #[allow(deprecated)]
     #[must_use]
-    pub const fn new() -> DefaultHasher {
+    pub fn new() -> DefaultHasher {
         DefaultHasher(SipHasher13::new_with_keys(0, 0))
     }
 }

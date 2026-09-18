@@ -77,12 +77,17 @@ pub fn lock_state() -> State {
     const IN_PROGRESS: u32 = 1;
 
     let state = unsafe {
-        let (state, _) = core::intrinsics::atomic_cxchg_seqcst_seqcst(
-            &mut ENCLAVE_STATE,
+        use core::sync::atomic::{AtomicU32, Ordering};
+        let ptr = &ENCLAVE_STATE as *const u32 as *const AtomicU32;
+        match (*ptr).compare_exchange(
             NOT_STARTED,
             IN_PROGRESS,
-        );
-        state
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            Ok(v) => v,
+            Err(v) => v,
+        }
     };
     match state {
         0 => State::NotStarted,

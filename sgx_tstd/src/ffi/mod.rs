@@ -182,6 +182,6 @@ pub use core::ffi::{
 
 pub use core::ffi::c_void;
 
-pub use core::ffi::{VaList, VaListImpl};
+pub use core::ffi::{VaList};
 
 mod os_str;

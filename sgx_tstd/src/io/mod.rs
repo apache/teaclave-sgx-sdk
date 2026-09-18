@@ -420,64 +420,104 @@ pub(crate) fn default_read_to_end<R: Read + ?Sized>(
     let start_cap = buf.capacity();
     // Optionally limit the maximum bytes read on each iteration.
     // This adds an arbitrary fiddle factor to allow for more data than we expect.
-    let max_read_size =
-        size_hint.and_then(|s| s.checked_add(1024)?.checked_next_multiple_of(DEFAULT_BUF_SIZE));
+    let mut max_read_size = size_hint
+        .and_then(|s| s.checked_add(1024)?.checked_next_multiple_of(DEFAULT_BUF_SIZE))
+        .unwrap_or(DEFAULT_BUF_SIZE);
 
-    let mut initialized = 0; // Extra initialized bytes from previous loop iteration
+    const PROBE_SIZE: usize = 32;
+
+    fn small_probe_read<R: Read + ?Sized>(r: &mut R, buf: &mut Vec<u8>) -> Result<usize> {
+        let mut probe = [0u8; PROBE_SIZE];
+
+        loop {
+            match r.read(&mut probe) {
+                Ok(n) => {
+                    // there is no way to recover from allocation failure here
+                    // because the data has already been read.
+                    buf.extend_from_slice(&probe[..n]);
+                    return Ok(n);
+                }
+                Err(ref e) if e.is_interrupted() => continue,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    // avoid inflating empty/small vecs before we have determined that there's anything to read
+    if (size_hint.is_none() || size_hint == Some(0)) && buf.capacity() - buf.len() < PROBE_SIZE {
+        let read = small_probe_read(r, buf)?;
+
+        if read == 0 {
+            return Ok(0);
+        }
+    }
+
     loop {
-        if buf.len() == buf.capacity() {
-            buf.reserve(32); // buf is full, need more space
-        }
-
-        let mut spare = buf.spare_capacity_mut();
-        if let Some(size) = max_read_size {
-            let len = cmp::min(spare.len(), size);
-            spare = &mut spare[..len]
-        }
-        let mut read_buf: BorrowedBuf<'_> = spare.into();
-
-        // SAFETY: These bytes were initialized but not filled in the previous loop
-        unsafe {
-            read_buf.set_init(initialized);
-        }
-
-        let mut cursor = read_buf.unfilled();
-        match r.read_buf(cursor.reborrow()) {
-            Ok(()) => {}
-            Err(e) if e.is_interrupted() => continue,
-            Err(e) => return Err(e),
-        }
-
-        if cursor.written() == 0 {
-            return Ok(buf.len() - start_len);
-        }
-
-        // store how much was initialized but not filled
-        initialized = cursor.init_ref().len();
-
-        // SAFETY: BorrowedBuf's invariants mean this much memory is initialized.
-        unsafe {
-            let new_len = read_buf.filled().len() + buf.len();
-            buf.set_len(new_len);
-        }
-
         if buf.len() == buf.capacity() && buf.capacity() == start_cap {
             // The buffer might be an exact fit. Let's read into a probe buffer
             // and see if it returns `Ok(0)`. If so, we've avoided an
             // unnecessary doubling of the capacity. But if not, append the
             // probe buffer to the primary buffer and let its capacity grow.
-            let mut probe = [0u8; 32];
+            let read = small_probe_read(r, buf)?;
 
-            loop {
-                match r.read(&mut probe) {
-                    Ok(0) => return Ok(buf.len() - start_len),
-                    Ok(n) => {
-                        buf.extend_from_slice(&probe[..n]);
-                        break;
-                    }
-                    Err(ref e) if e.is_interrupted() => continue,
-                    Err(e) => return Err(e),
-                }
+            if read == 0 {
+                return Ok(buf.len() - start_len);
+            }
+        }
+
+        if buf.len() == buf.capacity() {
+            // buf is full, need more space
+            buf.try_reserve(PROBE_SIZE).map_err(|_| crate::io::ErrorKind::OutOfMemory)?;
+        }
+
+        let mut spare = buf.spare_capacity_mut();
+        let buf_len = cmp::min(spare.len(), max_read_size);
+        spare = &mut spare[..buf_len];
+        let mut read_buf: BorrowedBuf<'_, u8> = spare.into();
+
+        // Note that we don't track already initialized bytes here, but this is fine
+        // because we explicitly limit the read size
+        let mut cursor = read_buf.unfilled();
+        let result = loop {
+            match r.read_buf(cursor.reborrow()) {
+                Err(e) if e.is_interrupted() => continue,
+                // Do not stop now in case of error: we might have received both data
+                // and an error
+                res => break res,
+            }
+        };
+
+        let bytes_read = cursor.written();
+        let is_init = read_buf.is_init();
+
+        // SAFETY: BorrowedBuf's invariants mean this much memory is initialized.
+        unsafe {
+            let new_len = bytes_read + buf.len();
+            buf.set_len(new_len);
+        }
+
+        // Now that all data is pushed to the vector, we can fail without data loss
+        result?;
+
+        if bytes_read == 0 {
+            return Ok(buf.len() - start_len);
+        }
+
+        // Use heuristics to determine the max read size if no initial size hint was provided
+        if size_hint.is_none() {
+            // The reader is returning short reads but it doesn't call ensure_init().
+            // In that case we no longer need to restrict read sizes to avoid
+            // initialization costs.
+            // When reading from disk we usually don't get any short reads except at EOF.
+            // So we wait for at least 2 short reads before uncapping the read buffer;
+            // this helps with the Windows issue.
+            if !is_init {
+                max_read_size = usize::MAX;
+            }
+            // we have passed a larger buffer than previously and the
+            // reader still hasn't returned a short read
+            else if buf_len >= max_read_size && bytes_read == buf_len {
+                max_read_size = max_read_size.saturating_mul(2);
             }
         }
     }
@@ -534,15 +574,12 @@ pub(crate) fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [
     }
 }
 
-pub(crate) fn default_read_buf<F>(read: F, mut cursor: BorrowedCursor<'_>) -> Result<()>
+pub(crate) fn default_read_buf<F>(read: F, mut cursor: BorrowedCursor<'_, u8>) -> Result<()>
 where
     F: FnOnce(&mut [u8]) -> Result<usize>,
 {
-    let n = read(cursor.ensure_init().init_mut())?;
-    unsafe {
-        // SAFETY: we initialised using `ensure_init` so there is no uninit data to advance to.
-        cursor.advance(n);
-    }
+    let n = read(cursor.ensure_init())?;
+    unsafe { cursor.advance(n) };
     Ok(())
 }
 
@@ -876,7 +913,7 @@ pub trait Read {
     /// with uninitialized buffers. The new data will be appended to any existing contents of `buf`.
     ///
     /// The default implementation delegates to `read`.
-    fn read_buf(&mut self, buf: BorrowedCursor<'_>) -> Result<()> {
+    fn read_buf(&mut self, buf: BorrowedCursor<'_, u8>) -> Result<()> {
         default_read_buf(|b| self.read(b), buf)
     }
 
@@ -898,7 +935,7 @@ pub trait Read {
     /// returns.
     ///
     /// If this function returns an error, all bytes read will be appended to `cursor`.
-    fn read_buf_exact(&mut self, mut cursor: BorrowedCursor<'_>) -> Result<()> {
+    fn read_buf_exact(&mut self, mut cursor: BorrowedCursor<'_, u8>) -> Result<()> {
         while cursor.capacity() > 0 {
             let prev_written = cursor.written();
             match self.read_buf(cursor.reborrow()) {
@@ -2614,51 +2651,61 @@ impl<T: Read> Read for Take<T> {
         Ok(n)
     }
 
-    fn read_buf(&mut self, mut buf: BorrowedCursor<'_>) -> Result<()> {
+    fn read_buf(&mut self, mut buf: BorrowedCursor<'_, u8>) -> Result<()> {
         // Don't call into inner reader at all at EOF because it may still block
         if self.limit == 0 {
             return Ok(());
         }
 
-        if self.limit <= buf.capacity() as u64 {
-            // if we just use an as cast to convert, limit may wrap around on a 32 bit target
-            let limit = cmp::min(self.limit, usize::MAX as u64) as usize;
+        if self.limit < buf.capacity() as u64 {
+            // The condition above guarantees that `self.limit` fits in `usize`.
+            let limit = self.limit as usize;
 
-            let extra_init = cmp::min(limit as usize, buf.init_ref().len());
+            let is_init = buf.is_init();
 
             // SAFETY: no uninit data is written to ibuf
-            let ibuf = unsafe { &mut buf.as_mut()[..limit] };
+            let mut sliced_buf = BorrowedBuf::from(unsafe { &mut buf.as_mut()[..limit] });
 
-            let mut sliced_buf: BorrowedBuf<'_> = ibuf.into();
-
-            // SAFETY: extra_init bytes of ibuf are known to be initialized
-            unsafe {
-                sliced_buf.set_init(extra_init);
+            if is_init {
+                // SAFETY: `sliced_buf` is a subslice of `buf`, so if `buf` was initialized then
+                // `sliced_buf` is.
+                unsafe { sliced_buf.set_init() };
             }
 
-            let mut cursor = sliced_buf.unfilled();
-            self.inner.read_buf(cursor.reborrow())?;
+            let result = self.inner.read_buf(sliced_buf.unfilled());
 
-            let new_init = cursor.init_ref().len();
+            let did_init_up_to_limit = sliced_buf.is_init();
             let filled = sliced_buf.len();
 
-            // cursor / sliced_buf / ibuf must drop here
+            // sliced_buf must drop here
+
+            // Avoid accidentally quadratic behaviour by initializing the whole
+            // cursor if only part of it was initialized.
+            if did_init_up_to_limit && !is_init {
+                // SAFETY: No uninit data will be written.
+                let unfilled_before_advance = unsafe { buf.as_mut() };
+
+                unfilled_before_advance[limit..].write_filled(0);
+
+                // SAFETY: `unfilled_before_advance[..limit]` was initialized by `T::read_buf`, and
+                // `unfilled_before_advance[limit..]` was just initialized.
+                unsafe { buf.set_init() };
+            }
 
             unsafe {
-                // SAFETY: filled bytes have been filled and therefore initialized
+                // SAFETY: filled bytes have been filled
                 buf.advance(filled);
-                // SAFETY: new_init bytes of buf's unfilled buffer have been initialized
-                buf.set_init(new_init);
             }
 
             self.limit -= filled as u64;
+
+            result
         } else {
             let written = buf.written();
-            self.inner.read_buf(buf.reborrow())?;
+            let result = self.inner.read_buf(buf.reborrow());
             self.limit -= (buf.written() - written) as u64;
+            result
         }
-
-        Ok(())
     }
 }
 

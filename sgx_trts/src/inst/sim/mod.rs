@@ -19,6 +19,7 @@ use crate::arch::{Enclu, SecInfo, Secs, Tcs};
 use crate::error::abort;
 use crate::se::{AlignKey, AlignKeyRequest, AlignReport, AlignReportData, AlignTargetInfo};
 use core::convert::TryFrom;
+#[cfg(not(feature = "use_sgx_sdk"))]
 use core::ptr;
 use core::sync::atomic::AtomicUsize;
 use inst::EncluInst;
@@ -86,12 +87,18 @@ pub struct GlobalSim {
     pub seed: u64,
 }
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[no_mangle]
 pub static mut g_global_data_sim: GlobalSim = GlobalSim {
     secs: ptr::null(),
     cpu_svn: CpuSvn { svn: [0; 16] },
     seed: 0,
 };
+
+#[cfg(feature = "use_sgx_sdk")]
+extern "C" {
+    pub static mut g_global_data_sim: GlobalSim;
+}
 
 impl GlobalSim {
     #[inline]

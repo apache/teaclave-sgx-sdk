@@ -35,8 +35,13 @@ pub(crate) mod manager;
 static mut RSRV_MEM: Option<RsrvMem> = None;
 static RSRV_MEM_INIT: Once = Once::new();
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[no_mangle]
 static mut g_peak_rsrv_mem_committed: usize = 0;
+#[cfg(feature = "use_sgx_sdk")]
+extern "C" {
+    pub static mut g_peak_rsrv_mem_committed: usize;
+}
 
 macro_rules! round_to_page {
     ($num:expr) => {

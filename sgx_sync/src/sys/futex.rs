@@ -24,7 +24,6 @@ use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher, SipHasher13};
-use core::intrinsics;
 use core::sync::atomic::{AtomicBool, Ordering};
 use core::time::Duration;
 use sgx_trts::sync::SpinMutex;
@@ -179,7 +178,7 @@ impl Futex {
     }
 
     fn load_val(&self) -> u32 {
-        unsafe { intrinsics::atomic_load_seqcst(self.0 as *const u32) }
+        unsafe { { use core::sync::atomic::{AtomicU32, Ordering}; (*((self.0 as *const u32) as *const AtomicU32)).load(Ordering::SeqCst) } }
     }
 
     fn addr(&self) -> usize {

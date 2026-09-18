@@ -79,7 +79,7 @@ pub fn relocate() -> SgxResult {
     let mut plt_size = 0_u64;
 
     match segment {
-        SegmentData::Dynamic64(dyns) => dyns.as_slice().iter().all(|d| {
+        SegmentData::Dynamic64(dyns) => AsSlice::as_slice(dyns).iter().all(|d| {
             let tag = try_result_bool!(d.get_tag());
             match tag {
                 DynTag::Null => return false,
@@ -300,25 +300,23 @@ fn get_sym<'a>(symtabl: *const u8, idx: u32) -> Option<&'a DynEntry64> {
 }
 
 unsafe fn relocate_elf_rela(elf: &ElfFile, sym_offset: u64, rel_offset: u64, rel_size: u64) {
-    let sym_table = (elf.input.as_slice().as_ptr() as usize + sym_offset as usize) as *const u8;
-    let rel_raw = elf
-        .input
-        .as_slice()
+    let sym_table = (AsSlice::as_slice(elf.input).as_ptr() as usize + sym_offset as usize) as *const u8;
+    let rel_raw = AsSlice::as_slice(elf.input)
         .into_slice_unchecked((rel_offset as usize, (rel_offset + rel_size) as usize));
     let rel_array = Rela64Array::new(read_array(rel_raw));
 
-    rel_array.get_array().as_slice().iter().for_each(|rel| {
+    AsSlice::as_slice(rel_array.get_array()).iter().for_each(|rel| {
         let reloc_addr =
-            (elf.input.as_slice().as_ptr() as usize + rel.get_offset() as usize) as *mut u64;
+            (AsSlice::as_slice(elf.input).as_ptr() as usize + rel.get_offset() as usize) as *mut u64;
 
         match rel.get_type() {
             sections::R_X86_64_RELATIVE => {
-                *reloc_addr = elf.input.as_slice().as_ptr() as u64 + rel.get_addend();
+                *reloc_addr = AsSlice::as_slice(elf.input).as_ptr() as u64 + rel.get_addend();
             }
             sections::R_X86_64_GLOB_DAT | sections::R_X86_64_JMP_SLOT | sections::R_X86_64_64 => {
                 if let Some(sym) = get_sym(sym_table, rel.get_symbol_table_index()) {
                     *reloc_addr =
-                        elf.input.as_slice().as_ptr() as u64 + sym.value() + rel.get_addend();
+                        AsSlice::as_slice(elf.input).as_ptr() as u64 + sym.value() + rel.get_addend();
                 }
             }
             sections::R_X86_64_DTPMOD64 => *reloc_addr = 1_u64,

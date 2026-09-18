@@ -18,6 +18,7 @@
 #![allow(unused_imports)]
 
 mod atexit;
+#[cfg(not(feature = "use_sgx_sdk"))]
 mod entry;
 mod init;
 mod mem;
@@ -27,6 +28,8 @@ pub mod parse;
 pub mod state;
 
 pub use atexit::{at_exit, cleanup};
-pub use init::{ctors, global_init, rtinit};
+pub use init::{ctors, global_init};
+#[cfg(not(feature = "use_sgx_sdk"))]
+pub use init::rtinit;
 pub use mem::{is_within_enclave, is_within_host, EnclaveRange, MmLayout};
 pub use uninit::{global_exit, rtuninit, UNINIT_FLAG};

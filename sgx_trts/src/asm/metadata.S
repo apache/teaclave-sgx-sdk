@@ -17,7 +17,7 @@
 
 .file "metadata.S"
 
-.equ METADATA_SIZE, 0x5000
+.equ METADATA_SIZE, 0x6000
 
 .section ".note.sgxmeta", "", @note
     .p2align 2              /* section alignment */

@@ -25,12 +25,15 @@ cfg_if! {
     if #[cfg(feature = "sim")] {
         global_asm!(include_str!("../inst/sim/td.S"), options(att_syntax));
         global_asm!(include_str!("../inst/sim/enclu.S"), options(att_syntax));
+        global_asm!(include_str!("../inst/sim/aexnotify.S"), options(att_syntax));
     } else if #[cfg(feature = "hyper")] {
         global_asm!(include_str!("../inst/hyper/td.S"), options(att_syntax));
         global_asm!(include_str!("../inst/hyper/enclu.S"), options(att_syntax));
+        global_asm!(include_str!("../inst/hyper/aexnotify.S"), options(att_syntax));
     } else {
         global_asm!(include_str!("../inst/hw/td.S"), options(att_syntax));
         global_asm!(include_str!("../inst/hw/enclu.S"), options(att_syntax));
+        global_asm!(include_str!("../inst/hw/aexnotify.S"), options(att_syntax));
     }
 }
 
@@ -62,7 +65,7 @@ global_asm!(include_str!("pic.S"), options(att_syntax));
 const SYNTHETIC_STATE_SIZE: usize = 512 + 64;
 #[link_section = ".niprod"]
 #[no_mangle]
-pub static mut SYNTHETIC_STATE: Align64<[u32; SYNTHETIC_STATE_SIZE / 4]> = Align64([
+pub static SYNTHETIC_STATE: Align64<[u32; SYNTHETIC_STATE_SIZE / 4]> = Align64([
     0x037F, 0, 0, 0, 0, 0, 0x1FBF, 0xFFFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -70,9 +73,8 @@ pub static mut SYNTHETIC_STATE: Align64<[u32; SYNTHETIC_STATE_SIZE / 4]> = Align
     0, 0, 0, 0, 0, 2, 0, 2, 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ]);
 
-#[inline(always)]
 #[no_mangle]
-pub unsafe extern "C" fn get_synthetic_state_ptr(
-) -> &'static mut Align64<[u32; SYNTHETIC_STATE_SIZE / 4]> {
-    &mut SYNTHETIC_STATE
+pub extern "C" fn get_synthetic_state_ptr(
+) -> *const Align64<[u32; SYNTHETIC_STATE_SIZE / 4]> {
+    &SYNTHETIC_STATE as *const _
 }

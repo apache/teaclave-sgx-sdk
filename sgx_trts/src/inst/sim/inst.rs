@@ -409,6 +409,11 @@ impl EncluInst {
     }
 
     #[inline]
+    pub fn eacceptcopy(_info: &SecInfo, _addr: usize, _source: usize) -> Result<(), u32> {
+        Ok(())
+    }
+
+    #[inline]
     pub fn emodpe(_info: &SecInfo, _addr: usize) -> Result<(), u32> {
         Ok(())
     }

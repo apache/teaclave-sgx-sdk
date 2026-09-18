@@ -24,11 +24,11 @@ use sgx_types::marker::ContiguousMemory;
 
 pub fn parse_header<'a>(input: &'a [u8]) -> Result<Header<'a>, &'static str> {
     let size_pt1 = mem::size_of::<HeaderPt1>();
-    if input.as_slice().len() < size_pt1 {
+    if AsSlice::as_slice(input).len() < size_pt1 {
         return Err("File is shorter than the first ELF header part");
     }
     let header_1: &'a HeaderPt1 =
-        read(unsafe { input.as_slice().into_slice_unchecked((0, size_pt1)) });
+        read(unsafe { AsSlice::as_slice(input).into_slice_unchecked((0, size_pt1)) });
 
     if !slice::eq(&header_1.magic, &MAGIC) {
         return Err("Did not find ELF magic number");
@@ -38,24 +38,22 @@ pub fn parse_header<'a>(input: &'a [u8]) -> Result<Header<'a>, &'static str> {
         Class::None | Class::Other(_) => return Err("Invalid ELF class"),
         Class::ThirtyTwo => {
             let size_pt2 = mem::size_of::<HeaderPt2_<u32>>();
-            if input.as_slice().len() < size_pt1 + size_pt2 {
+            if AsSlice::as_slice(input).len() < size_pt1 + size_pt2 {
                 return Err("File is shorter than ELF headers");
             }
             let header_2: &'a HeaderPt2_<u32> = read(unsafe {
-                input
-                    .as_slice()
+                AsSlice::as_slice(input)
                     .into_slice_unchecked((size_pt1, size_pt1 + mem::size_of::<HeaderPt2_<u32>>()))
             });
             HeaderPt2::Header32(header_2)
         }
         Class::SixtyFour => {
             let size_pt2 = mem::size_of::<HeaderPt2_<u64>>();
-            if input.as_slice().len() < size_pt1 + size_pt2 {
+            if AsSlice::as_slice(input).len() < size_pt1 + size_pt2 {
                 return Err("File is shorter than ELF headers");
             }
             let header_2: &'a HeaderPt2_<u64> = read(unsafe {
-                input
-                    .as_slice()
+                AsSlice::as_slice(input)
                     .into_slice_unchecked((size_pt1, size_pt1 + mem::size_of::<HeaderPt2_<u64>>()))
             });
             HeaderPt2::Header64(header_2)
@@ -464,12 +462,12 @@ pub fn sanity_check(file: &ElfFile) -> Result<(), &'static str> {
 
     check!(
         pt2.ph_offset() + (pt2.ph_entry_size() as u64) * (pt2.ph_count() as u64)
-            <= file.input.as_slice().len() as u64,
+            <= AsSlice::as_slice(file.input).len() as u64,
         "program header table out of range"
     );
     check!(
         pt2.sh_offset() + (pt2.sh_entry_size() as u64) * (pt2.sh_count() as u64)
-            <= file.input.as_slice().len() as u64,
+            <= AsSlice::as_slice(file.input).len() as u64,
         "section header table out of range"
     );
     Ok(())

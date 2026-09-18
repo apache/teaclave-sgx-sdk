@@ -20,6 +20,9 @@ use super::*;
 use core::mem;
 use core::slice;
 
+/* intel DCAP 1.17 */
+pub type CTdxQlQvCollateral = CQlQveCollateral;
+
 /* intel DCAP 1.14 */
 //
 // sgx_quote_4.h
@@ -48,8 +51,8 @@ impl_unsafe_marker_for! {
     TeeTcbSvn
 }
 
-pub const TD_INFO_RESERVED_BYTES: usize = 112;
-pub const TD_TEE_TCB_INFO_RESERVED_BYTES: usize = 111;
+pub const TD_INFO_RESERVED_BYTES_V1: usize = 112;
+pub const TD_TEE_TCB_INFO_RESERVED_BYTES_V1: usize = 111;
 
 #[derive(Clone, Copy, Debug)]
 #[repr(C)]
@@ -61,7 +64,7 @@ pub struct TeeInfo {
     pub mr_owner: TeeMeasurement,
     pub mr_owner_config: TeeMeasurement,
     pub rt_mr: [TeeMeasurement; 4],
-    pub reserved: [u8; TD_INFO_RESERVED_BYTES],
+    pub reserved: [u8; TD_INFO_RESERVED_BYTES_V1],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -72,7 +75,7 @@ pub struct TeeTcbInfo {
     pub mr_seam: TeeMeasurement,
     pub mr_seam_signer: TeeMeasurement,
     pub attributes: TeeAttributes,
-    pub reserved: [u8; TD_TEE_TCB_INFO_RESERVED_BYTES],
+    pub reserved: [u8; TD_TEE_TCB_INFO_RESERVED_BYTES_V1],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -141,6 +144,7 @@ impl_struct_ContiguousMemory! {
     TeeTcbInfo;
     QeReportCertificationData;
     EcdsaSigDataV4;
+    Quote4Header;
     Quote4;
 }
 
@@ -200,6 +204,207 @@ impl Quote4 {
         slice::from_raw_parts(
             self as *const _ as *const u8,
             mem::size_of::<Quote4>() + self.signature_data_len as usize,
+        )
+    }
+}
+
+/* intel DCAP 1.18 */
+//
+// sgx_quote_5.h
+//
+
+pub const TD_INFO_RESERVED_BYTES_V15: usize = 64;
+pub const TD_TEE_TCB_INFO_RESERVED_BYTES_V15: usize = 95;
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct TeeInfoV15 {
+    pub attributes: TeeAttributes,
+    pub xfam: TeeAttributes,
+    pub mr_td: TeeMeasurement,
+    pub mr_config_id: TeeMeasurement,
+    pub mr_owner: TeeMeasurement,
+    pub mr_owner_config: TeeMeasurement,
+    pub rt_mr: [TeeMeasurement; 4],
+    pub mr_servicetd: TeeMeasurement,
+    pub reserved: [u8; TD_INFO_RESERVED_BYTES_V15],
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct TeeTcbInfoV15 {
+    pub valid: [u8; 8],
+    pub tee_tcb_svn: TeeTcbSvn,
+    pub mr_seam: TeeMeasurement,
+    pub mr_seam_signer: TeeMeasurement,
+    pub attributes: TeeAttributes,
+    pub tee_tcb_svn2: TeeTcbSvn,
+    pub reserved: [u8; TD_TEE_TCB_INFO_RESERVED_BYTES_V15],
+}
+
+pub type Quote5Header = Quote4Header;
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C, packed)]
+pub struct Report2BodyV15 {
+    pub tee_tcb_svn: TeeTcbSvn,
+    pub mr_seam: TeeMeasurement,
+    pub mrsigner_seam: TeeMeasurement,
+    pub seam_attributes: TeeAttributes,
+    pub td_attributes: TeeAttributes,
+    pub xfam: TeeAttributes,
+    pub mr_td: TeeMeasurement,
+    pub mr_config_id: TeeMeasurement,
+    pub mr_owner: TeeMeasurement,
+    pub mr_owner_config: TeeMeasurement,
+    pub rt_mr: [TeeMeasurement; 4],
+    pub report_data: TeeReportData,
+    pub tee_tcb_svn2: TeeTcbSvn,
+    pub mr_servicetd: TeeMeasurement,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct Quote5 {
+    pub header: Quote5Header,
+    pub quote_type: u16,
+    pub size: u32,
+    pub body: [u8; 0],
+}
+
+impl_struct_default! {
+    TeeInfoV15; //512
+    TeeTcbInfoV15; //239
+}
+
+impl_struct_ContiguousMemory! {
+    TeeInfoV15;
+    TeeTcbInfoV15;
+    Report2BodyV15;
+    Quote5;
+}
+
+impl_asref_array! {
+    TeeInfoV15;
+    TeeTcbInfoV15;
+    Report2BodyV15;
+}
+
+impl Quote5 {
+    /// # Safety
+    pub unsafe fn as_slice_unchecked(&self) -> &[u8] {
+        slice::from_raw_parts(
+            self as *const _ as *const u8,
+            mem::size_of::<Quote5>() + self.size as usize,
+        )
+    }
+}
+
+/* intel DCAP 1.15 */
+//
+// tdx_attes.h
+//
+pub const TDX_UUID_SIZE: usize = 16;
+pub const TDX_REPORT_DATA_SIZE: usize = 64;
+pub const TDX_REPORT_SIZE: usize = 1024;
+
+impl_struct! {
+    #[repr(C)]
+    #[derive(Debug, Eq, PartialEq)]
+    pub struct TdxUuid {
+        pub d: [u8; TDX_UUID_SIZE],
+    }
+}
+
+impl_asref_array! {
+    TdxUuid;
+}
+impl_asmut_array! {
+    TdxUuid;
+}
+impl_from_array! {
+    TdxUuid;
+}
+impl_unsafe_marker_for! {
+    BytewiseEquality,
+    TdxUuid
+}
+
+impl_copy_clone! {
+    #[repr(C)]
+    #[derive(Debug)]
+    pub struct TdxReportData {
+        pub d: [u8; TDX_REPORT_DATA_SIZE],
+    }
+}
+impl_copy_clone! {
+    #[repr(C)]
+    #[derive(Debug)]
+    pub struct TdxReport {
+        pub d: [u8; TDX_REPORT_SIZE],
+    }
+}
+
+impl_struct_default! {
+    TdxReportData; //64
+    TdxReport; //1024
+}
+
+impl_struct_ContiguousMemory! {
+    TdxReportData;
+    TdxReport;
+}
+
+impl_asref_array! {
+    TdxReportData;
+    TdxReport;
+}
+
+impl_asmut_array! {
+    TdxReportData;
+}
+impl_from_array! {
+    TdxReportData;
+}
+
+impl_unsafe_marker_for! {
+    BytewiseEquality,
+    TdxReportData
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C, packed)]
+pub struct TdxRtmrEvent {
+    pub version: u32,
+    pub rtmr_index: u64,
+    pub extend_data: [u8; 48],
+    pub event_type: u32,
+    pub event_data_size: u32,
+    pub event_data: [u8; 0],
+}
+
+impl_struct_default! {
+    TdxRtmrEvent; //68
+}
+
+impl_struct_ContiguousMemory! {
+    TdxRtmrEvent;
+}
+
+impl TdxRtmrEvent {
+    /// # Safety
+    pub unsafe fn as_slice_unchecked(&self) -> &[u8] {
+        slice::from_raw_parts(
+            self as *const _ as *const u8,
+            mem::size_of::<TdxRtmrEvent>() + self.event_data_size as usize,
+        )
+    }
+
+    /// # Safety
+    pub unsafe fn event_data_slice_unchecked(&self) -> &[u8] {
+        slice::from_raw_parts(
+            &self.event_data as *const _ as *const u8,
+            self.event_data_size as usize,
         )
     }
 }

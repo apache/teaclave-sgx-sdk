@@ -28,12 +28,15 @@ use core::ffi::c_void;
 use core::ptr;
 use core::ptr::NonNull;
 use core::slice;
+#[cfg(not(feature = "use_sgx_sdk"))]
 use sgx_crypto_sys::sgx_init_crypto_lib;
+#[cfg(not(feature = "use_sgx_sdk"))]
 use sgx_tlibc_sys::{sgx_heap_init, sgx_init_string_lib};
 use sgx_types::error::{SgxResult, SgxStatus};
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::types::EnclaveId;
 
+#[cfg(not(feature = "use_sgx_sdk"))]
 #[allow(unused_variables)]
 #[link_section = ".nipx"]
 pub fn rtinit(tcs: &mut Tcs, ms: *mut SystemFeatures, tidx: usize) -> SgxResult {
@@ -94,6 +97,13 @@ pub fn rtinit(tcs: &mut Tcs, ms: *mut SystemFeatures, tidx: usize) -> SgxResult 
 
     state::set_state(State::InitDone);
     Ok(())
+}
+
+#[cfg(feature = "use_sgx_sdk")]
+#[no_mangle]
+pub extern "C" fn rtinit_with_sgx_sdk() {
+    mem::Image::init();
+    let _ = SysFeatures::init_from_sgx_sdk();
 }
 
 pub fn ctors() -> SgxResult {

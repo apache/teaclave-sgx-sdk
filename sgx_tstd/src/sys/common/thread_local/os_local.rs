@@ -23,7 +23,7 @@ use crate::{fmt, marker, panic, ptr};
 
 #[allow_internal_unstable(thread_local_internals)]
 #[allow_internal_unsafe]
-#[rustc_macro_transparency = "semitransparent"]
+#[rustc_macro_transparency = "semiopaque"]
 pub macro thread_local_inner {
     // used to generate the `LocalKey` value for const-initialized thread locals
     (@key $t:ty, const $init:expr) => {{
@@ -191,7 +191,7 @@ unsafe extern "C" fn destroy_value<T: 'static>(ptr: *mut u8) {
     let ret =  panic::catch_unwind(|| unsafe {
         let ptr = Box::from_raw(ptr as *mut Value<T>);
         let key = ptr.key;
-        key.os.set(ptr::invalid_mut(1));
+        key.os.set(ptr::without_provenance_mut(1));
         drop(ptr);
         key.os.set(ptr::null_mut());
     });

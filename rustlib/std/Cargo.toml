@@ -44,6 +44,7 @@ unsupported_process = []
 panic-unwind = ["panic_unwind"]
 profiler = ["profiler_builtins"]
 capi = ["sgx_sync/capi", "sgx_rsrvmm/capi"]
+unit_test = []
 
 [dependencies]
 sgx_alloc = { path = "../../sgx_alloc" }
