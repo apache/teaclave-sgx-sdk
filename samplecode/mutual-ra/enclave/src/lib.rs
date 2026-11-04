@@ -79,7 +79,7 @@ fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
             a temporary overloading or maintenance). This is a
             temporary state – the same request can be repeated after
             some time. ",
-        _ => {println!("DBG:{}", respp.code.unwrap()); msg = "Unknown error occured"},
+        _ => {println!("DBG:{}", respp.code.unwrap()); msg = "Unknown error occurred"},
     }
 
     println!("{}", msg);
